@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File AES Encrypt/Decrypt</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input[type="file"],
+    input[type="text"],
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    .download-link {
+      display: block;
+      margin-top: 15px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🔐 AES Encrypt / Decrypt</h2>
+    <input type="file" id="fileInput">
+    <input type="text" id="keyInput" placeholder="Enter encryption key">
+    <button onclick="handleEncrypt()">Encrypt File</button>
+    <button onclick="handleDecrypt()">Decrypt File</button>
+    <a id="downloadLink" class="download-link" style="display: none;">Download Result</a>
+  </div>
+
+  <script>
+    async function encryptFileAES(file, key) {
+      const keyBytes = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(key.padEnd(32).slice(0, 32)),
+        { name: "AES-CBC" },
+        false,
+        ["encrypt"]
+      );
+
+      const iv = crypto.getRandomValues(new Uint8Array(16));
+      const fileBuffer = await file.arrayBuffer();
+
+      const encryptedData = await crypto.subtle.encrypt(
+        { name: "AES-CBC", iv },
+        keyBytes,
+        fileBuffer
+      );
+
+      const resultBuffer = new Uint8Array(iv.byteLength + encryptedData.byteLength);
+      resultBuffer.set(iv, 0);
+      resultBuffer.set(new Uint8Array(encryptedData), iv.byteLength);
+
+      return new Blob([resultBuffer], { type: "application/octet-stream" });
+    }
+
+    async function decryptFileAES(file, key) {
+      const fileBuffer = await file.arrayBuffer();
+      const fileBytes = new Uint8Array(fileBuffer);
+
+      const iv = fileBytes.slice(0, 16);
+      const data = fileBytes.slice(16);
+
+      const keyBytes = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(key.padEnd(32).slice(0, 32)),
+        { name: "AES-CBC" },
+        false,
+        ["decrypt"]
+      );
+
+      try {
+        const decryptedData = await crypto.subtle.decrypt(
+          { name: "AES-CBC", iv },
+          keyBytes,
+          data
+        );
+
+        return new Blob([decryptedData], { type: "application/octet-stream" });
+      } catch (e) {
+        alert("⚠️ Sai khóa hoặc dữ liệu bị lỗi!");
+        throw e;
+      }
+    }
+
+    async function handleEncrypt() {
+      const file = document.getElementById("fileInput").files[0];
+      const key = document.getElementById("keyInput").value;
+      if (!file || !key) return alert("Hãy chọn file và nhập khóa!");
+
+      const encrypted = await encryptFileAES(file, key);
+      downloadBlob(encrypted, file.name + ".enc");
+    }
+
+    async function handleDecrypt() {
+      const file = document.getElementById("fileInput").files[0];
+      const key = document.getElementById("keyInput").value;
+      if (!file || !key) return alert("Hãy chọn file và nhập khóa!");
+
+      try {
+        const decrypted = await decryptFileAES(file, key);
+        downloadBlob(decrypted, file.name.replace(/\.enc$/, ""));
+      } catch {}
+    }
+
+    function downloadBlob(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const link = document.getElementById("downloadLink");
+      link.href = url;
+      link.download = fileName;
+      link.style.display = "block";
+      link.textContent = `Download: ${fileName}`;
+    }
+  </script>
+</body>
+</html>
